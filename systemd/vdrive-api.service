@@ -1,0 +1,18 @@
+[Unit]
+Description=VDrive Node.js API (port 3200)
+After=network.target vdrive-pb.service
+Wants=vdrive-pb.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vdrive/backend
+ExecStart=/usr/bin/node server.js
+EnvironmentFile=/opt/vdrive/backend/.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

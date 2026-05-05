@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  /* Use dvh (dynamic viewport height) so mobile browser chrome is accounted for */
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  /* App shell (drive/login) gets fixed height, share page scrolls freely */
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-surface-0 text-ink font-sans antialiased;
+    /* Prevent elastic scroll on iOS */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { @apply bg-surface-1; }
+  ::-webkit-scrollbar-thumb { @apply bg-surface-4 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-accent-dim; }
+
+  ::selection { @apply bg-accent/30 text-ink; }
+
+  /* Remove 300ms tap delay on buttons only — not globally (breaks scroll) */
+  button, a { touch-action: manipulation; }
+  input, textarea, select { touch-action: auto; }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(26, 26, 38, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(108, 99, 255, 0.12);
+  }
+  .glass-hover:hover {
+    background: rgba(44, 44, 61, 0.8);
+    border-color: rgba(108, 99, 255, 0.25);
+  }
+  /* Hide scrollbar but keep scroll */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+
+  /* Full dynamic viewport height */
+  .h-dvh { height: 100dvh; }
+  .min-h-dvh { min-height: 100dvh; }
+}

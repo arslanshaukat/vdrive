@@ -1,0 +1,18 @@
+[Unit]
+Description=VDrive PocketBase (port 8091)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/vdrive/pocketbase
+ExecStart=/opt/vdrive/pocketbase/pocketbase serve \
+  --http=0.0.0.0:8091 \
+  --dir=/opt/vdrive/pb_data
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
