@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import {
   getFolders, getFiles, createFolder, deleteFolder, renameFolder,
-  uploadFile, deleteFile, renameFile, moveFile, searchAll, getFolderCounts, isAdmin, isAdmin,
+  uploadFile, deleteFile, renameFile, moveFile, searchAll, getFolderCounts, isAdmin, deleteFiles, isAdmin,
   Folder, DriveFile, formatBytes, fileIcon, isImage, getFileUrl, getThumbUrl
 } from '../lib/api'
 import { PreviewModal } from '../components/PreviewModal'
@@ -265,6 +265,16 @@ export function DrivePage() {
               className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-all">
               {downloading ? '⏳' : '⬇'} {selected.size > 0 ? `(${selected.size})` : ''}
             </button>
+            {userIsAdmin && selected.size > 0 && (
+              <button onClick={async () => {
+                if (!confirm(`Delete ${selected.size} file${selected.size > 1 ? 's' : ''}? This cannot be undone.`)) return
+                await deleteFiles(Array.from(selected))
+                setSelected(new Set()); setSelectMode(false); load()
+              }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition-all">
+                🗑 Delete ({selected.size})
+              </button>
+            )}
             <button onClick={exitSelectMode}
               className="px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm text-ink-muted hover:text-ink transition-all">
               Cancel

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import axios from 'axios'
-import { getActivity, clearActivity, ActivityItem } from '../lib/api'
+import { getActivity, clearActivity, ActivityItem, getUsers, createUser, updateUser, deleteUser, VDriveUser } from '../lib/api'
 
 interface Settings {
   company_name: string
@@ -28,6 +28,11 @@ export function SettingsPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [activityTotal, setActivityTotal] = useState(0)
+  const [users, setUsers] = useState<VDriveUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [showNewUser, setShowNewUser] = useState(false)
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'user' })
+  const [saving2, setSaving2] = useState(false)
 
   const loadActivity = async () => {
     setActivityLoading(true)
@@ -40,6 +45,10 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (activeTab === 'activity') loadActivity()
+    if (activeTab === 'users') {
+      setUsersLoading(true)
+      getUsers().then(setUsers).finally(() => setUsersLoading(false))
+    }
   }, [activeTab])
 
   useEffect(() => {
@@ -93,11 +102,11 @@ export function SettingsPage() {
       </div>
 
       <div className="flex gap-1 px-4 sm:px-6 pt-4 border-b border-surface-3 flex-shrink-0">
-        {(['company', 'account', 'activity'] as const).map(tab => (
+        {(['company', 'users', 'activity'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all border-b-2 -mb-px capitalize
               ${activeTab === tab ? 'text-accent-bright border-accent bg-accent/5' : 'text-ink-muted border-transparent hover:text-ink'}`}>
-            {tab === 'company' ? '🏢 Company' : tab === 'account' ? '👤 Account' : '📋 Activity'}
+            {tab === 'company' ? '🏢 Company' : tab === 'users' ? '👥 Users' : '📋 Activity'}
           </button>
         ))}
       </div>
@@ -231,6 +240,121 @@ export function SettingsPage() {
                             {item.detail && <span className="text-xs text-ink-faint">({item.detail})</span>}
                           </div>
                           <p className="text-xs text-ink-faint mt-0.5">{new Date(item.created).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'users' && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-ink text-sm font-semibold">Users</h3>
+                  <button onClick={() => setShowNewUser(v => !v)}
+                    className="px-3 py-1.5 bg-accent/20 border border-accent/30 text-accent-bright text-xs rounded-lg hover:bg-accent/30 transition-all">
+                    + New user
+                  </button>
+                </div>
+
+                {/* New user form */}
+                {showNewUser && (
+                  <div className="glass rounded-xl p-4 space-y-3">
+                    <h4 className="text-ink text-xs font-semibold uppercase tracking-widest text-ink-muted">New User</h4>
+                    {['name','email','password'].map(field => (
+                      <input key={field} type={field === 'password' ? 'password' : 'text'}
+                        placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                        value={(newUser as any)[field]}
+                        onChange={e => setNewUser(u => ({ ...u, [field]: e.target.value }))}
+                        className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm text-ink focus:outline-none focus:border-accent/50" />
+                    ))}
+                    <select value={newUser.role} onChange={e => setNewUser(u => ({ ...u, role: e.target.value }))}
+                      className="w-full px-3 py-2 bg-surface-2 border border-surface-3 rounded-lg text-sm text-ink focus:outline-none focus:border-accent/50">
+                      <option value="user">User — can upload, view, share</option>
+                      <option value="admin">Admin — full access including delete</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button onClick={async () => {
+                        if (!newUser.name || !newUser.email || !newUser.password) return alert('Fill all fields')
+                        setSaving2(true)
+                        try {
+                          const u = await createUser(newUser)
+                          setUsers(prev => [...prev, u])
+                          setShowNewUser(false)
+                          setNewUser({ name: '', email: '', password: '', role: 'user' })
+                        } catch { alert('Failed to create user') } finally { setSaving2(false) }
+                      }} disabled={saving2}
+                        className="px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-50 text-white text-sm rounded-lg transition-all">
+                        {saving2 ? 'Creating…' : 'Create'}
+                      </button>
+                      <button onClick={() => setShowNewUser(false)}
+                        className="px-4 py-2 bg-surface-2 border border-surface-3 text-ink-muted text-sm rounded-lg hover:text-ink transition-all">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* User list */}
+                {usersLoading ? (
+                  <div className="flex justify-center py-8"><div className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" /></div>
+                ) : (
+                  <div className="space-y-2">
+                    {users.map(user => (
+                      <div key={user.id} className="glass rounded-xl p-4 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent-bright font-semibold text-sm flex-shrink-0">
+                            {user.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-ink text-sm font-medium">{user.name}</p>
+                            <p className="text-ink-muted text-xs truncate">{user.email}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${user.role === 'admin' ? 'bg-accent/15 text-accent-bright border border-accent/20' : 'bg-surface-3 text-ink-muted'}`}>
+                              {user.role}
+                            </span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${user.active ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
+                              {user.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Permissions row */}
+                        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-surface-3">
+                          <select value={user.role}
+                            onChange={async e => {
+                              const updated = await updateUser(user.id, { role: e.target.value })
+                              setUsers(prev => prev.map(u => u.id === user.id ? updated : u))
+                            }}
+                            className="px-2 py-1 bg-surface-2 border border-surface-3 rounded-lg text-xs text-ink focus:outline-none focus:border-accent/50">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          <button onClick={async () => {
+                            const updated = await updateUser(user.id, { active: !user.active })
+                            setUsers(prev => prev.map(u => u.id === user.id ? updated : u))
+                          }}
+                            className={`px-2 py-1 text-xs rounded-lg border transition-all ${user.active ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-green-500/10 border-green-500/20 text-green-400 hover:bg-green-500/20'}`}>
+                            {user.active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button onClick={async () => {
+                            const p = prompt('New password (leave blank to keep):')
+                            if (!p) return
+                            await updateUser(user.id, { password: p })
+                            alert('Password updated')
+                          }}
+                            className="px-2 py-1 text-xs rounded-lg border border-surface-3 bg-surface-2 text-ink-muted hover:text-ink transition-all">
+                            Change password
+                          </button>
+                          <button onClick={async () => {
+                            if (!confirm(`Delete ${user.name}?`)) return
+                            await deleteUser(user.id)
+                            setUsers(prev => prev.filter(u => u.id !== user.id))
+                          }}
+                            className="px-2 py-1 text-xs rounded-lg border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all ml-auto">
+                            Delete
+                          </button>
                         </div>
                       </div>
                     ))}

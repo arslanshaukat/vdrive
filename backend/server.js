@@ -13,24 +13,25 @@ const PB_URL = process.env.POCKETBASE_URL || 'http://localhost:8091'
 const PB_EMAIL = process.env.PB_ADMIN_EMAIL
 const PB_PASS = process.env.PB_ADMIN_PASSWORD
 
-app.use(cors())
+app.use(cors({ origin: '*', allowedHeaders: ['Content-Type', 'X-Auth-Token', 'Authorization'], exposedHeaders: ['Content-Disposition'] }))
 app.use(express.json())
 
-// ── Hardcoded users (no DB needed for auth) ──────────────
-const USERS = [
-  {
-    email: 'arslanshaukat@hotmail.com',
-    password: 'Taylors@12',
-    name: 'Arslan Shaukat',
-    role: 'admin'
-  },
-  {
-    email: 'gtsubic@gmail.com',
-    password: 'Subic@123',
-    name: 'GT Subic',
-    role: 'user'
+// ── Dynamic users from PocketBase ────────────────────────
+async function findUser(email, password) {
+  try {
+    const filter = encodeURIComponent(`email="${email}"`)
+    const r = await pbFetch(`/collections/vdrive_users/records?filter=${filter}&perPage=1`)
+    const d = await r.json()
+    const user = d.items?.[0]
+    if (!user) return null
+    if (user.password !== password) return null
+    if (user.active === false) return null
+    return user
+  } catch (err) {
+    console.error('findUser error:', err)
+    return null
   }
-]
+}
 
 // Simple in-memory session tokens
 const sessions = new Map()
@@ -130,15 +131,13 @@ function mapFolder(record) {
 // AUTH ROUTES
 // ══════════════════════════════════════════════════════════
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body
-  const user = USERS.find(u => u.email === email && u.password === password)
+  const user = await findUser(email, password)
   if (!user) return res.status(401).json({ error: 'Invalid credentials' })
 
   const token = generateToken()
   sessions.set(token, { email: user.email, name: user.name, role: user.role })
-
-  // Expire session after 12 hours
   setTimeout(() => sessions.delete(token), 12 * 60 * 60 * 1000)
 
   res.json({
@@ -811,8 +810,59 @@ app.delete('/api/activity', requireAuth, requireAdmin, async (req, res) => {
   }
 })
 
+
+// ══════════════════════════════════════════════════════════
+// USER MANAGEMENT (admin only)
+// ══════════════════════════════════════════════════════════
+
+app.get('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const r = await pbFetch('/collections/vdrive_users/records?perPage=100&sort=name')
+    const d = await r.json()
+    res.json((d.items || []).map(u => ({
+      id: u.id, email: u.email, name: u.name, role: u.role, active: u.active
+    })))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.post('/api/users', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { email, password, name, role } = req.body
+    const r = await pbFetch('/collections/vdrive_users/records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name, role: role || 'user', active: true })
+    })
+    const d = await r.json()
+    if (!r.ok) return res.status(r.status).json(d)
+    res.json({ id: d.id, email: d.email, name: d.name, role: d.role, active: d.active })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.patch('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const r = await pbFetch(`/collections/vdrive_users/records/${req.params.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    })
+    const d = await r.json()
+    if (!r.ok) return res.status(r.status).json(d)
+    res.json({ id: d.id, email: d.email, name: d.name, role: d.role, active: d.active })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    // Prevent deleting yourself
+    if (req.user.email === req.body.email) return res.status(400).json({ error: 'Cannot delete yourself' })
+    await pbFetch(`/collections/vdrive_users/records/${req.params.id}`, { method: 'DELETE' })
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.listen(PORT, () => {
   console.log(`VDrive API running on port ${PORT}`)
   console.log(`PocketBase: ${PB_URL}`)
-  console.log(`Users: ${USERS.map(u => u.email).join(', ')}`)
+  console.log(`VDrive API started`)
 })

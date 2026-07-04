@@ -184,3 +184,29 @@ export const isAdmin = () => {
   const user = getStoredUser()
   return user?.role === 'admin'
 }
+
+// ── User management ──────────────────────────────────────
+export interface VDriveUser {
+  id: string
+  email: string
+  name: string
+  role: string
+  active: boolean
+}
+
+export const getUsers = () =>
+  api.get<VDriveUser[]>('/users').then(r => r.data)
+
+export const createUser = (data: Partial<VDriveUser> & { password: string }) =>
+  api.post<VDriveUser>('/users', data).then(r => r.data)
+
+export const updateUser = (id: string, data: Partial<VDriveUser> & { password?: string }) =>
+  api.patch<VDriveUser>(`/users/${id}`, data).then(r => r.data)
+
+export const deleteUser = (id: string) =>
+  api.delete(`/users/${id}`)
+
+// ── Bulk delete ──────────────────────────────────────────
+export const deleteFiles = async (ids: string[]) => {
+  await Promise.all(ids.map(id => api.delete(`/files/${id}`)))
+}
