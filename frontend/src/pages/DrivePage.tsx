@@ -5,11 +5,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import {
   getFolders, getFiles, createFolder, deleteFolder, renameFolder,
-  uploadFile, deleteFile, renameFile, moveFile, searchAll, getFolderCounts, isAdmin, deleteFiles, isAdmin,
+  uploadFile, deleteFile, renameFile, moveFile, searchAll, getFolderCounts, isAdmin, deleteFiles,
+  moveFolder, moveFileToFolder, copyFile,
+  moveFolder, moveFileToFolder, copyFile, isAdmin,
   Folder, DriveFile, formatBytes, fileIcon, isImage, getFileUrl, getThumbUrl
 } from '../lib/api'
 import { PreviewModal } from '../components/PreviewModal'
 import { ShareModal } from '../components/ShareModal'
+import { FolderPickerModal } from '../components/FolderPickerModal'
+import { FolderPickerModal } from '../components/FolderPickerModal'
 import { Breadcrumb } from '../components/Breadcrumb'
 import { UploadQueue } from '../components/UploadQueue'
 import { compressFiles } from '../lib/compress'
@@ -32,6 +36,7 @@ export function DrivePage() {
   const [showSearch, setShowSearch] = useState(!!searchParams.get('q'))
   const [preview, setPreview] = useState<DriveFile | null>(null)
   const [shareTarget, setShareTarget] = useState<{ type: 'file' | 'folder'; id: string; label: string } | null>(null)
+  const [pickerTarget, setPickerTarget] = useState<{ action: 'move_file' | 'move_folder' | 'copy_file'; id: string; label: string } | null>(null)
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [newFolderMode, setNewFolderMode] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
@@ -340,6 +345,8 @@ export function DrivePage() {
                       onShare={() => setShareTarget({ type: 'folder', id: folder.id, label: folder.name })}
                       fileCount={folderCounts[folder.id] !== undefined ? folderCounts[folder.id] : null}
                       onDownload={() => downloadFolderFiles(folder.id)}
+                      onMove={() => setPickerTarget({ action: 'move_folder', id: folder.id, label: folder.name })}
+                      onMove={() => setPickerTarget({ action: 'move_folder', id: folder.id, label: folder.name })}
                       onDragOver={e => handleFolderDragOver(e, folder.id)}
                       onDrop={e => handleFolderDrop(e, folder.id)}
                       onDragLeave={() => setDragOverFolder(null)}
@@ -367,6 +374,10 @@ export function DrivePage() {
                       onDelete={() => handleDeleteFile(file.id)}
                       onRename={async name => { await renameFile(file.id, name); load() }}
                       onShare={() => setShareTarget({ type: 'file', id: file.id, label: file.name })}
+                      onMove={() => setPickerTarget({ action: 'move_file', id: file.id, label: file.name })}
+                      onCopy={() => setPickerTarget({ action: 'copy_file', id: file.id, label: file.name })}
+                      onMove={() => setPickerTarget({ action: 'move_file', id: file.id, label: file.name })}
+                      onCopy={() => setPickerTarget({ action: 'copy_file', id: file.id, label: file.name })}
                       onDragStart={() => handleFileDragStart(file)}
                       onDragEnd={handleFileDragEnd}
                     />
@@ -383,6 +394,23 @@ export function DrivePage() {
       <UploadQueue items={uploads} compressing={compressing} />
       {preview && <PreviewModal file={preview} allFiles={files} onClose={() => setPreview(null)} onNavigate={f => setPreview(f)} />}
       {shareTarget && <ShareModal type={shareTarget.type} targetId={shareTarget.id} label={shareTarget.label} onClose={() => setShareTarget(null)} />}
+      {pickerTarget && (
+        <FolderPickerModal
+          title={pickerTarget.action === 'copy_file' ? `Copy "${pickerTarget.label}" to…` : `Move "${pickerTarget.label}" to…`}
+          excludeId={pickerTarget.action === 'move_folder' ? pickerTarget.id : undefined}
+          onClose={() => setPickerTarget(null)}
+          onSelect={async (folder) => {
+            try {
+              if (pickerTarget.action === 'move_file') await moveFileToFolder(pickerTarget.id, folder?.id || null)
+              else if (pickerTarget.action === 'move_folder') await moveFolder(pickerTarget.id, folder?.id || null)
+              else if (pickerTarget.action === 'copy_file') await copyFile(pickerTarget.id, folder?.id || null)
+              setPickerTarget(null)
+              load()
+            } catch { alert('Operation failed') }
+          }}
+        />
+      )}
+      
     </div>
   )
 }
@@ -426,10 +454,10 @@ function PortalMenu({ children, anchorRef, open, onClose }: {
 }
 
 // ── Folder Card ──────────────────────────────────────────
-function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount, userIsAdmin, onOpen, onDelete, onRename, onShare, onDownload, onDragOver, onDrop, onDragLeave }:
+function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount, userIsAdmin, onOpen, onDelete, onRename, onShare, onDownload, onMove, onDragOver, onDrop, onDragLeave }:
   {
     folder: Folder; viewMode: 'grid' | 'list'; index: number; isDragOver: boolean; selectMode: boolean; fileCount: number | null; userIsAdmin: boolean
-    onOpen: () => void; onDelete: () => void; onRename: (n: string) => void; onShare: () => void; onDownload: () => void
+    onOpen: () => void; onDelete: () => void; onRename: (n: string) => void; onShare: () => void; onDownload: () => void; onMove: () => void
     onDragOver: (e: React.DragEvent) => void; onDrop: (e: React.DragEvent) => void; onDragLeave: () => void
   }) {
   const [editing, setEditing] = useState(false)
@@ -449,6 +477,7 @@ function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount
             <MenuItem icon="✏️" label="Rename" onClick={() => { setEditing(true); setName(folder.name); setMenuOpen(false) }} />
             <MenuItem icon="🔗" label="Share" onClick={() => { onShare(); setMenuOpen(false) }} />
             <MenuItem icon="⬇️" label="Download all" onClick={() => { onDownload(); setMenuOpen(false) }} />
+            <MenuItem icon="📦" label="Move to…" onClick={() => { onMove(); setMenuOpen(false) }} />
             <div className="h-px bg-surface-3 my-1" />
             <MenuItem icon="🗑" label="Delete" onClick={() => { onDelete(); setMenuOpen(false) }} danger />
           </PortalMenu>
@@ -502,12 +531,12 @@ function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount
 }
 
 // ── File Card ─────────────────────────────────────────────
-function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, onPreview, onSelect, onDelete, onRename, onShare, onDragStart, onDragEnd }:
+function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, onPreview, onSelect, onDelete, onRename, onShare, onMove, onCopy, onDragStart, onDragEnd }:
   {
     file: DriveFile; viewMode: 'grid' | 'list'; index: number
     selectMode: boolean; isSelected: boolean; userIsAdmin: boolean
     onPreview: () => void; onSelect: () => void; onDelete: () => void
-    onRename: (n: string) => void; onShare: () => void
+    onRename: (n: string) => void; onShare: () => void; onMove: () => void; onCopy: () => void
     onDragStart: () => void; onDragEnd: () => void
   }) {
   const [editing, setEditing] = useState(false)
@@ -537,6 +566,8 @@ function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, 
             <MenuItem icon="👁" label="Preview" onClick={() => { onPreview(); setMenuOpen(false) }} />
             <MenuItem icon="✏️" label="Rename" onClick={() => { setEditing(true); setName(file.name); setMenuOpen(false) }} />
             <MenuItem icon="🔗" label="Share" onClick={() => { onShare(); setMenuOpen(false) }} />
+            <MenuItem icon="📦" label="Move to…" onClick={() => { onMove(); setMenuOpen(false) }} />
+            <MenuItem icon="📋" label="Copy to…" onClick={() => { onCopy(); setMenuOpen(false) }} />
             <a href={serveUrl} download={file.name} onClick={() => setMenuOpen(false)}>
               <MenuItem icon="⬇️" label="Download" onClick={() => {}} />
             </a>

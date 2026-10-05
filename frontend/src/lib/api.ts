@@ -210,3 +210,17 @@ export const deleteUser = (id: string) =>
 export const deleteFiles = async (ids: string[]) => {
   await Promise.all(ids.map(id => api.delete(`/files/${id}`)))
 }
+
+// ── Copy & Move ──────────────────────────────────────────
+// ── Copy & Move ──────────────────────────────────────────
+export const moveFolder = (id: string, parentId: string | null) =>
+  api.patch(`/folders/${id}/move`, { parent_id: parentId || '' })
+
+export const moveFileToFolder = (id: string, folderId: string | null) =>
+  api.patch(`/files/${id}/move`, { folder_id: folderId || '' })
+
+export const copyFile = (id: string, folderId: string | null) =>
+  api.post(`/files/${id}/copy`, { folder_id: folderId || '' })
+
+export const getAllFolders = () =>
+  api.get<Folder[]>('/folders/all').then(r => r.data)

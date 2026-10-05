@@ -861,6 +861,89 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+
+// ══════════════════════════════════════════════════════════
+// COPY & MOVE FOLDERS/FILES
+// ══════════════════════════════════════════════════════════
+
+// Move folder to new parent
+app.patch('/api/folders/:id/move', requireAuth, async (req, res) => {
+  try {
+    const { parent_id } = req.body
+    const r = await pbFetch(`/collections/vdrive_folders/records/${req.params.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parent_id: parent_id || '' })
+    })
+    const d = await r.json()
+    if (!r.ok) return res.status(r.status).json(d)
+    await logActivity(req.user.email, 'move_folder', d.name, `to ${parent_id || 'root'}`)
+    res.json(mapFolder(d))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Move file to new folder
+app.patch('/api/files/:id/move', requireAuth, async (req, res) => {
+  try {
+    const { folder_id } = req.body
+    const r = await pbFetch(`/collections/vdrive_files/records/${req.params.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: folder_id || '' })
+    })
+    const d = await r.json()
+    if (!r.ok) return res.status(r.status).json(d)
+    await logActivity(req.user.email, 'move_file', d.name, `to ${folder_id || 'root'}`)
+    res.json(mapFile(d))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Copy file to another folder
+app.post('/api/files/:id/copy', requireAuth, async (req, res) => {
+  try {
+    const { folder_id } = req.body
+
+    // Get original file record
+    const origRes = await pbFetch(`/collections/vdrive_files/records/${req.params.id}`)
+    const orig = await origRes.json()
+    if (!origRes.ok) return res.status(origRes.status).json(orig)
+
+    // Download the file from PocketBase
+    const token = await getPBToken()
+    const fileUrl = `${PB_URL}/api/files/${orig.collectionId}/${orig.id}/${orig.file}`
+    const fileRes = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const buffer = Buffer.from(await fileRes.arrayBuffer())
+
+    // Re-upload as new record
+    const fd = new FormData()
+    fd.append('file', buffer, { filename: orig.file, contentType: orig.mime_type })
+    fd.append('name', orig.name)
+    fd.append('size', String(orig.size))
+    fd.append('mime_type', orig.mime_type || 'application/octet-stream')
+    fd.append('folder_id', folder_id || '')
+
+    const newRes = await fetch(`${PB_URL}/api/collections/vdrive_files/records`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, ...fd.getHeaders() },
+      body: fd
+    })
+    const newFile = await newRes.json()
+    if (!newRes.ok) return res.status(newRes.status).json(newFile)
+
+    await logActivity(req.user.email, 'copy_file', orig.name, `to ${folder_id || 'root'}`)
+    res.json(mapFile(newFile))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// GET /api/folders/all — returns flat list of all folders for picker
+app.get('/api/folders/all', requireAuth, async (req, res) => {
+  try {
+    const r = await pbFetch('/collections/vdrive_folders/records?perPage=500&sort=name')
+    const d = await r.json()
+    res.json((d.items || []).map(mapFolder))
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 app.listen(PORT, () => {
   console.log(`VDrive API running on port ${PORT}`)
   console.log(`PocketBase: ${PB_URL}`)
