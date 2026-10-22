@@ -51,7 +51,7 @@ export function SharePage() {
       }))
       .catch(() => {})
 
-    fetch(`/api/public/s/${code}`)
+    fetch(`/api/public/s/${code}`, { headers: { 'X-Share-Token': sessionStorage.getItem('share_token_' + code) || '' } })
       .then(r => r.ok ? r.json() : r.json().then(d => Promise.reject(d.error || 'Not found')))
       .then(setData)
       .catch(e => setError(typeof e === 'string' ? e : 'Link not found or expired'))
