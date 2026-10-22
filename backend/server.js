@@ -8,6 +8,7 @@ import { Readable } from 'stream'
 import crypto from 'crypto'
 import { registerProtectedShares } from './protected-shares.js'
 import { registerZipDownload } from './zip-download.js'
+import { registerShareBrowse } from './share-browse.js'
 
 const app = express()
 const PORT = process.env.PORT || 3200
@@ -19,6 +20,7 @@ app.use(cors({ origin: '*', allowedHeaders: ['Content-Type', 'X-Auth-Token', 'Au
 app.use(express.json())
 registerProtectedShares(app, { requireAuth, pbFetch, logActivity: typeof logActivity === 'function' ? logActivity : null })
 registerZipDownload(app, { requireAuth, pbFetch, getPBToken, PB_URL, logActivity: typeof logActivity === 'function' ? logActivity : null })
+registerShareBrowse(app, { requireAuth, pbFetch })
 
 // ── Dynamic users from PocketBase ────────────────────────
 async function findUser(email, password) {

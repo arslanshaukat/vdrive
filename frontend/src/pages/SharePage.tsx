@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { ShareFolders } from '../components/ShareFolders'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatBytes, fileIcon, isImage, isVideo, isAudio, isPdf } from '../lib/api'
 
@@ -7,7 +8,7 @@ interface PublicFile {
   id: string; name: string; size: number; mime_type: string; url: string; thumb_url?: string | null
 }
 interface ShareData {
-  type: 'file' | 'folder'; label: string; files: PublicFile[]
+  type: 'file' | 'folder'; label: string; files: PublicFile[]; folders?: { id: string; name: string; count: number }[]; path?: { id: string; name: string }[]
 }
 interface Company {
   name: string; tagline: string; mission: string; website: string; email: string; phone: string; logo: string
@@ -28,6 +29,8 @@ export function SharePage() {
   const touchStartY = useRef<number>(0)
   const touchStartX = useRef<number>(0)
   const { code } = useParams<{ code: string }>()
+  const [sp, setSp] = useSearchParams()
+  const folderParam = sp.get('folder') || ''
   const [data, setData] = useState<ShareData | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -51,12 +54,12 @@ export function SharePage() {
       }))
       .catch(() => {})
 
-    fetch(`/api/public/s/${code}`, { headers: { 'X-Share-Token': sessionStorage.getItem('share_token_' + code) || '' } })
+    fetch(`/api/public/s/${code}${folderParam ? '?folder=' + encodeURIComponent(folderParam) : ''}`, { headers: { 'X-Share-Token': sessionStorage.getItem('share_token_' + code) || '' } })
       .then(r => r.ok ? r.json() : r.json().then(d => Promise.reject(d.error || 'Not found')))
       .then(setData)
       .catch(e => setError(typeof e === 'string' ? e : 'Link not found or expired'))
       .finally(() => setLoading(false))
-  }, [code])
+  }, [code, folderParam])
 
   const toggleSelect = (id: string) =>
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -176,6 +179,7 @@ export function SharePage() {
 
       {/* Files */}
       <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 py-6">
+        <ShareFolders folders={data.folders || []} path={data.path || []} onOpen={id => id ? setSp({ folder: id }) : setSp({})} />
         {imageFiles.length > 0 && (
           <section className="mb-8">
             {otherFiles.length > 0 && <h2 className="text-white/30 text-xs font-mono uppercase tracking-widest mb-3">Images</h2>}
