@@ -12,7 +12,7 @@ import {
 } from '../lib/api'
 import { PreviewModal } from '../components/PreviewModal'
 import { ShareModal } from '../components/ShareModal'
-import { getFolderCovers } from '../lib/folderCovers'
+import { getFolderCovers, setFolderCover } from '../lib/folderCovers'
 import { startZipDownload } from '../lib/zip'
 import { FolderPickerModal } from '../components/FolderPickerModal'
 import { FolderPickerModal } from '../components/FolderPickerModal'
@@ -392,6 +392,10 @@ export function DrivePage() {
                       onDelete={() => handleDeleteFile(file.id)}
                       onRename={async name => { await renameFile(file.id, name); load() }}
                       onShare={() => setShareTarget({ type: 'file', id: file.id, label: file.name })}
+                      onSetCover={async () => {
+                        try { await setFolderCover(file.folder_id as string, file.id); alert('Folder thumbnail updated') }
+                        catch (e: any) { alert(e?.response?.data?.error || 'Could not set the thumbnail') }
+                      }}
                       onMove={() => setPickerTarget({ action: 'move_file', id: file.id, label: file.name })}
                       onCopy={() => setPickerTarget({ action: 'copy_file', id: file.id, label: file.name })}
                       onMove={() => setPickerTarget({ action: 'move_file', id: file.id, label: file.name })}
@@ -553,12 +557,12 @@ function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount
 }
 
 // ── File Card ─────────────────────────────────────────────
-function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, onPreview, onSelect, onDelete, onRename, onShare, onMove, onCopy, onDragStart, onDragEnd }:
+function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, onPreview, onSelect, onDelete, onRename, onShare, onMove, onCopy, onSetCover, onDragStart, onDragEnd }:
   {
     file: DriveFile; viewMode: 'grid' | 'list'; index: number
     selectMode: boolean; isSelected: boolean; userIsAdmin: boolean
     onPreview: () => void; onSelect: () => void; onDelete: () => void
-    onRename: (n: string) => void; onShare: () => void; onMove: () => void; onCopy: () => void
+    onRename: (n: string) => void; onShare: () => void; onMove: () => void; onCopy: () => void; onSetCover: () => void
     onDragStart: () => void; onDragEnd: () => void
   }) {
   const [editing, setEditing] = useState(false)
@@ -590,6 +594,9 @@ function FileCard({ file, viewMode, index, selectMode, isSelected, userIsAdmin, 
             <MenuItem icon="🔗" label="Share" onClick={() => { onShare(); setMenuOpen(false) }} />
             <MenuItem icon="📦" label="Move to…" onClick={() => { onMove(); setMenuOpen(false) }} />
             <MenuItem icon="📋" label="Copy to…" onClick={() => { onCopy(); setMenuOpen(false) }} />
+            {isImage(file.mime_type) && file.folder_id && (
+              <MenuItem icon="🖼" label="Set as folder thumbnail" onClick={() => { onSetCover(); setMenuOpen(false) }} />
+            )}
             <a href={serveUrl} download={file.name} onClick={() => setMenuOpen(false)}>
               <MenuItem icon="⬇️" label="Download" onClick={() => {}} />
             </a>

@@ -10,3 +10,13 @@ export async function getFolderCovers(ids: string[]): Promise<Record<string, str
   })
   return r.data
 }
+
+export async function setFolderCover(folderId: string, fileId: string) {
+  const token = localStorage.getItem('vdrive_token') || ''
+  await axios.put(`/api/folders/${folderId}/cover`, { file_id: fileId }, { headers: { 'X-Auth-Token': token } })
+}
+
+export async function clearFolderCover(folderId: string) {
+  const token = localStorage.getItem('vdrive_token') || ''
+  await axios.delete(`/api/folders/${folderId}/cover`, { headers: { 'X-Auth-Token': token } })
+}

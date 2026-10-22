@@ -36,7 +36,7 @@ let cache = { t: 0, data: null }
 async function loadTree(pbFetch, maxAgeMs = 0) {
   if (maxAgeMs && cache.data && Date.now() - cache.t < maxAgeMs) return cache.data
   const [folders, files] = await Promise.all([
-    fetchAll(pbFetch, 'vdrive_folders', 'id,name,parent_id'),
+    fetchAll(pbFetch, 'vdrive_folders', 'id,name,parent_id,cover_id'),
     fetchAll(pbFetch, 'vdrive_files', 'id,name,size,mime_type,folder_id'),
   ])
   const folderMap = new Map(folders.map(f => [f.id, f]))
@@ -58,7 +58,11 @@ async function loadTree(pbFetch, maxAgeMs = 0) {
       const m = fixMime(f.mime_type, f.name)
       return m.startsWith('image/') && !/heic|heif/.test(m)
     })
-    if (imgs.length) covers.set(fid, imgs.slice().sort(byName)[0].id)
+    if (imgs.length) {
+      const fol = folderMap.get(fid)
+      const pick = fol && fol.cover_id ? imgs.find(f => f.id === fol.cover_id) : null
+      covers.set(fid, (pick || imgs.slice().sort(byName)[0]).id)
+    }
   }
   const totals = new Map()
   const total = (id, seen = new Set()) => {
@@ -95,6 +99,43 @@ export function registerShareBrowse(app, { requireAuth, pbFetch }) {
       for (const id of ids) { const cv = t.covers.get(id); if (cv) out[id] = cv }
       res.json(out)
     } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
+  app.put('/api/folders/:id/cover', requireAuth, async (req, res) => {
+    try {
+      const fid = clean(req.params.id)
+      const fileId = clean(req.body?.file_id)
+      if (!fid || !fileId) return res.status(400).json({ error: 'Invalid request' })
+      const fr = await pbFetch(`/collections/vdrive_files/records/${fileId}?fields=id,name,folder_id,mime_type`)
+      if (!fr.ok) return res.status(404).json({ error: 'File not found' })
+      const f = await fr.json()
+      if (clean(f.folder_id) !== fid) return res.status(400).json({ error: 'That photo is not inside this folder' })
+      const mime = fixMime(f.mime_type, f.name)
+      if (!mime.startsWith('image/') || /heic|heif/.test(mime))
+        return res.status(400).json({ error: 'Choose a regular photo (JPG or PNG)' })
+      const pr = await pbFetch(`/collections/vdrive_folders/records/${fid}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_id: fileId }),
+      })
+      const d = await pr.json()
+      if (!pr.ok) return res.status(pr.status).json(d)
+      if (d.cover_id !== fileId) return res.status(500).json({ error: 'cover_id field missing in PocketBase' })
+      cache = { t: 0, data: null }
+      res.json({ ok: true, cover: fileId })
+    } catch { res.status(500).json({ error: 'Server error' }) }
+  })
+
+  app.delete('/api/folders/:id/cover', requireAuth, async (req, res) => {
+    try {
+      const fid = clean(req.params.id)
+      const pr = await pbFetch(`/collections/vdrive_folders/records/${fid}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cover_id: '' }),
+      })
+      if (!pr.ok) return res.status(pr.status).json(await pr.json())
+      cache = { t: 0, data: null }
+      res.json({ ok: true })
+    } catch { res.status(500).json({ error: 'Server error' }) }
   })
 
   // Public share listing with subfolder navigation (password gate runs before this)
