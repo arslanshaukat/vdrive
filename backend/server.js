@@ -6,6 +6,7 @@ import fetch from 'node-fetch'
 import FormData from 'form-data'
 import { Readable } from 'stream'
 import crypto from 'crypto'
+import { registerProtectedShares } from './protected-shares.js'
 
 const app = express()
 const PORT = process.env.PORT || 3200
@@ -15,6 +16,7 @@ const PB_PASS = process.env.PB_ADMIN_PASSWORD
 
 app.use(cors({ origin: '*', allowedHeaders: ['Content-Type', 'X-Auth-Token', 'Authorization'], exposedHeaders: ['Content-Disposition'] }))
 app.use(express.json())
+registerProtectedShares(app, { requireAuth, pbFetch, logActivity: typeof logActivity === 'function' ? logActivity : null })
 
 // ── Dynamic users from PocketBase ────────────────────────
 async function findUser(email, password) {
