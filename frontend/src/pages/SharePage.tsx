@@ -69,6 +69,24 @@ export function SharePage() {
     selected.size === data.files.length ? setSelected(new Set()) : setSelected(new Set(data.files.map(f => f.id)))
   }
 
+  const [zipBusy, setZipBusy] = useState(false)
+  const downloadZip = async (ids: string[]) => {
+    if (!data || ids.length === 0) return
+    setZipBusy(true)
+    try {
+      const r = await fetch(`/api/public/s/${code}/zip-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Share-Token': sessionStorage.getItem('share_token_' + code) || '' },
+        body: JSON.stringify({ ids, name: data.label }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || 'Could not start the ZIP download')
+      window.location.href = d.url
+    } catch (e: any) {
+      alert(e?.message || 'Could not start the ZIP download')
+    } finally { setTimeout(() => setZipBusy(false), 2500) }
+  }
+
   const downloadFiles = async (filesToDl: PublicFile[]) => {
     setDownloading(true)
     for (const file of filesToDl) {
@@ -143,9 +161,9 @@ export function SharePage() {
                   className="px-3 py-1.5 bg-white/8 border border-white/10 hover:bg-white/15 text-white/70 hover:text-white text-xs rounded-lg transition-all">
                   ☑ Select
                 </button>
-                <button onClick={() => downloadFiles(data.files)} disabled={downloading}
+                <button onClick={() => data.files.length > 1 ? downloadZip(data.files.map(f => f.id)) : downloadFiles(data.files)} disabled={downloading || zipBusy}
                   className="flex items-center gap-1.5 px-4 py-1.5 bg-accent hover:bg-accent/80 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-all">
-                  {downloading ? '⏳' : '⬇'} Download all ({data.files.length})
+                  {zipBusy ? '⏳ Preparing…' : `🗜 Download all as ZIP (${data.files.length})`}
                 </button>
               </>
             )}
@@ -162,10 +180,10 @@ export function SharePage() {
                   {allSelected ? '☑ Deselect all' : '☐ Select all'}
                 </button>
                 <span className="text-xs text-white/40">{selected.size} selected</span>
-                <button onClick={() => downloadFiles(data.files.filter(f => selected.has(f.id)))}
+                <button onClick={() => selected.size > 1 ? downloadZip(Array.from(selected)) : downloadFiles(data.files.filter(f => selected.has(f.id)))}
                   disabled={selected.size === 0 || downloading}
                   className="px-3 py-1.5 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-all">
-                  {downloading ? '⏳' : `⬇ (${selected.size})`}
+                  {zipBusy ? '⏳ Preparing…' : selected.size > 1 ? `🗜 ZIP (${selected.size})` : `⬇ (${selected.size})`}
                 </button>
                 <button onClick={() => { setSelectMode(false); setSelected(new Set()) }}
                   className="px-3 py-1.5 bg-white/8 border border-white/10 text-white/70 text-xs rounded-lg hover:bg-white/15 transition-all">

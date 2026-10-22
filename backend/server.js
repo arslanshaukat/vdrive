@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { registerProtectedShares } from './protected-shares.js'
 import { registerZipDownload } from './zip-download.js'
 import { registerShareBrowse } from './share-browse.js'
+import { registerShareZip } from './share-zip.js'
 
 const app = express()
 const PORT = process.env.PORT || 3200
@@ -21,6 +22,7 @@ app.use(express.json())
 registerProtectedShares(app, { requireAuth, pbFetch, logActivity: typeof logActivity === 'function' ? logActivity : null })
 registerZipDownload(app, { requireAuth, pbFetch, getPBToken, PB_URL, logActivity: typeof logActivity === 'function' ? logActivity : null })
 registerShareBrowse(app, { requireAuth, pbFetch })
+registerShareZip(app, { pbFetch, getPBToken, PB_URL })
 
 // ── Dynamic users from PocketBase ────────────────────────
 async function findUser(email, password) {

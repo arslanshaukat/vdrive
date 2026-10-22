@@ -231,3 +231,4 @@ export function registerProtectedShares(app, { requireAuth, pbFetch, logActivity
     res.send(html)
   })
 }
+export { findShare, tokenOk }
