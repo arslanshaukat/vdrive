@@ -62,6 +62,7 @@ export interface DriveFile {
 }
 
 export interface Folder {
+  cover?: string | null
   id: string
   name: string
   parent_id: string | null

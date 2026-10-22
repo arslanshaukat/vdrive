@@ -12,6 +12,7 @@ import {
 } from '../lib/api'
 import { PreviewModal } from '../components/PreviewModal'
 import { ShareModal } from '../components/ShareModal'
+import { getFolderCovers } from '../lib/folderCovers'
 import { startZipDownload } from '../lib/zip'
 import { FolderPickerModal } from '../components/FolderPickerModal'
 import { FolderPickerModal } from '../components/FolderPickerModal'
@@ -72,6 +73,7 @@ export function DrivePage() {
       // Load counts after folders are known
       if (f.length > 0) {
         getFolderCounts(f.map(folder => folder.id)).then(setFolderCounts)
+        getFolderCovers(f.map(folder => folder.id)).then(cv => setFolders(prev => prev.map(x => ({ ...x, cover: cv[x.id] || null })))).catch(() => {})
       } else {
         setFolderCounts({})
       }
@@ -507,7 +509,9 @@ function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount
       <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.02 }}
         className={`flex items-center gap-3 px-3 py-3 rounded-xl glass cursor-pointer group transition-all ${dragClass} ${!isDragOver ? 'glass-hover' : ''}`}
         onDoubleClick={onOpen} onClick={onOpen} onDragOver={onDragOver} onDrop={onDrop} onDragLeave={onDragLeave}>
-        <span className="text-2xl flex-shrink-0">{isDragOver ? '📂' : '📁'}</span>
+        {folder.cover && !isDragOver
+          ? <img src={getThumbUrl(folder.cover)} alt="" loading="lazy" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-surface-2" />
+          : <span className="text-2xl flex-shrink-0">{isDragOver ? '📂' : '📁'}</span>}
         {editing ? (
           <input value={name} onChange={e => setName(e.target.value)} onBlur={commit}
             onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setName(folder.name); setEditing(false) } }}
@@ -530,7 +534,9 @@ function FolderCard({ folder, viewMode, index, isDragOver, selectMode, fileCount
           <ActionMenu />
         </div>
       )}
-      <span className="text-4xl mt-1">{isDragOver ? '📂' : '📁'}</span>
+      {folder.cover && !isDragOver
+        ? <img src={getThumbUrl(folder.cover)} alt="" loading="lazy" className="w-full aspect-[4/3] object-cover rounded-lg mt-1 bg-surface-2" />
+        : <span className="text-4xl mt-1">{isDragOver ? '📂' : '📁'}</span>}
       {editing ? (
         <input value={name} onChange={e => setName(e.target.value)} onBlur={commit}
           onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setName(folder.name); setEditing(false) } }}

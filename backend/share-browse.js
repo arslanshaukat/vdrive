@@ -52,6 +52,14 @@ async function loadTree(pbFetch, maxAgeMs = 0) {
     if (!filesBy.has(k)) filesBy.set(k, [])
     filesBy.get(k).push(f)
   }
+  const covers = new Map()
+  for (const [fid, list] of filesBy) {
+    const imgs = list.filter(f => {
+      const m = fixMime(f.mime_type, f.name)
+      return m.startsWith('image/') && !/heic|heif/.test(m)
+    })
+    if (imgs.length) covers.set(fid, imgs.slice().sort(byName)[0].id)
+  }
   const totals = new Map()
   const total = (id, seen = new Set()) => {
     if (totals.has(id)) return totals.get(id)
@@ -62,7 +70,7 @@ async function loadTree(pbFetch, maxAgeMs = 0) {
     totals.set(id, n)
     return n
   }
-  const data = { folderMap, kids, filesBy, total }
+  const data = { folderMap, kids, filesBy, total, covers }
   cache = { t: Date.now(), data }
   return data
 }
@@ -75,6 +83,16 @@ export function registerShareBrowse(app, { requireAuth, pbFetch }) {
       const t = await loadTree(pbFetch, 0)
       const out = {}
       for (const id of ids) out[id] = t.total(id)
+      res.json(out)
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
+  app.get('/api/folders/covers', requireAuth, async (req, res) => {
+    try {
+      const ids = String(req.query.ids || '').split(',').map(clean).filter(Boolean).slice(0, 500)
+      const t = await loadTree(pbFetch, 10000)
+      const out = {}
+      for (const id of ids) { const cv = t.covers.get(id); if (cv) out[id] = cv }
       res.json(out)
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
@@ -111,7 +129,7 @@ export function registerShareBrowse(app, { requireAuth, pbFetch }) {
       if (!inside) return res.status(404).json({ error: 'Folder not found' })
 
       const folders = (t.kids.get(wanted) || []).slice().sort(byName)
-        .map(f => ({ id: f.id, name: f.name, count: t.total(f.id) }))
+        .map(f => ({ id: f.id, name: f.name, count: t.total(f.id), cover: t.covers.get(f.id) || null }))
       const files = (t.filesBy.get(wanted) || []).slice().sort(byName).map(fileView)
 
       res.json({
