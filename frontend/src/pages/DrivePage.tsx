@@ -12,6 +12,7 @@ import {
 } from '../lib/api'
 import { PreviewModal } from '../components/PreviewModal'
 import { ShareModal } from '../components/ShareModal'
+import { startZipDownload } from '../lib/zip'
 import { FolderPickerModal } from '../components/FolderPickerModal'
 import { FolderPickerModal } from '../components/FolderPickerModal'
 import { Breadcrumb } from '../components/Breadcrumb'
@@ -50,6 +51,15 @@ export function DrivePage() {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+  const [zipping, setZipping] = useState(false)
+  const downloadZip = async () => {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    setZipping(true)
+    try { await startZipDownload(ids) }
+    catch { alert('Could not start the ZIP download') }
+    finally { setTimeout(() => setZipping(false), 2500) }
+  }
   const [compressing, setCompressing] = useState(false)
   const newFolderRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -270,6 +280,12 @@ export function DrivePage() {
               className="flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-all">
               {downloading ? '⏳' : '⬇'} {selected.size > 0 ? `(${selected.size})` : ''}
             </button>
+            {selected.size > 1 && (
+              <button onClick={downloadZip} disabled={zipping}
+                className="flex items-center gap-1.5 px-4 py-2 bg-surface-2 border border-surface-3 hover:border-accent/40 disabled:opacity-50 text-ink rounded-lg text-sm font-medium transition-all">
+                {zipping ? '⏳ Preparing…' : `🗜 ZIP (${selected.size})`}
+              </button>
+            )}
             {userIsAdmin && selected.size > 0 && (
               <button onClick={async () => {
                 if (!confirm(`Delete ${selected.size} file${selected.size > 1 ? 's' : ''}? This cannot be undone.`)) return
